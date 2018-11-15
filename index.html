@@ -57,11 +57,14 @@
 
             document.getElementById("changekey").onclick = function () {
                 if (STORAGE_KEY == 'todos-vuejs-2.0') {
+                    STORAGE_KEY = 'todos-group-1';
                     localStorage.setItem('todos-key','todos-group-1');
                 } else {
+                    STORAGE_KEY = 'todos-vuejs-2.0';
                     localStorage.setItem('todos-key','todos-vuejs-2.0');
                 }
-                window.location.reload();
+                app.todos = todoStorage.fetch();
+                app.$forceUpdate();
             };
 
             // visibility filters
