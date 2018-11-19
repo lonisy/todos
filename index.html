@@ -37,7 +37,7 @@
 
             // localStorage persistence
             var STORAGE_KEY = localStorage.getItem('todos-key');
-            if (!STORAGE_KEY){
+            if (!STORAGE_KEY) {
                 STORAGE_KEY = 'todos-vuejs-2.0';
             }
 
@@ -56,12 +56,20 @@
             }
 
             document.getElementById("changekey").onclick = function () {
-                if (STORAGE_KEY == 'todos-vuejs-2.0') {
-                    STORAGE_KEY = 'todos-group-1';
-                    localStorage.setItem('todos-key','todos-group-1');
+                var index = this.dataset['index'];
+                if (index == null) {
+                    index = 0;
+                }
+                if (index >= 3) {
+                    index = 0;
                 } else {
-                    STORAGE_KEY = 'todos-vuejs-2.0';
-                    localStorage.setItem('todos-key','todos-vuejs-2.0');
+                    index++;
+                }
+                this.dataset['index'] = index;
+                var groups = ['todos-vuejs-2.0', 'todos-group-1', 'todos-group-2', 'todos-group-3'];
+                if (groups[index]) {
+                    STORAGE_KEY = groups[index];
+                    localStorage.setItem('todos-key', groups[index]);
                 }
                 app.todos = todoStorage.fetch();
                 app.$forceUpdate();
@@ -203,6 +211,7 @@
                     app.visibility = 'all'
                 }
             }
+
             window.addEventListener('hashchange', onHashChange)
             onHashChange()
             // mount
@@ -259,7 +268,7 @@
     <p>Double-click to edit a todo</p>
     <p>Written by <a href="http://evanyou.me">Evan You</a></p>
     <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
-    <p><a href="javascript:void(0)" id="changekey">Change</a> of <a href="https://github.com/lonisy/">I'm
+    <p><a href="javascript:void(0)" id="changekey" data-index="0">Change</a> of <a href="https://github.com/lonisy/">I'm
         Lee</a></p>
 </footer>
 </body>
