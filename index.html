@@ -70,9 +70,11 @@
                 if (groups[index]) {
                     STORAGE_KEY = groups[index];
                     localStorage.setItem('todos-key', groups[index]);
+                    document.getElementById("task").innerHTML = STORAGE_KEY;
                 }
                 app.todos = todoStorage.fetch();
                 app.$forceUpdate();
+
             };
 
             // visibility filters
@@ -268,7 +270,7 @@
     <p>Double-click to edit a todo</p>
     <p>Written by <a href="http://evanyou.me">Evan You</a></p>
     <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
-    <p><a href="javascript:void(0)" id="changekey" data-index="0">Change</a> of <a href="https://github.com/lonisy/">I'm
+    <p style="position: fixed; right: 10px; top: 20px;"><a href="javascript:void(0)" id="changekey" data-index="0">Switch Task (<span id="task">default</span>)</a> of <a href="https://github.com/lonisy/">I'm
         Lee</a></p>
 </footer>
 </body>
