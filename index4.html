@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todos - Pro (Sortable)</title>
+    <link rel="shortcut icon" href="favicon.ico">
+    <!-- 使用 TodoMVC 标准样式 CDN，确保美观 -->
+    <link rel="stylesheet" href="https://unpkg.com/todomvc-common@1.0.5/base.css">
+    <link rel="stylesheet" href="https://unpkg.com/todomvc-app-css@2.4.1/index.css">
+    
+    <style>
+        [v-cloak] {
+            display: none;
+        }
+        /* 自定义排序样式 */
+        .todo-list li {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        /* 拖拽时的抓手光标 */
+        .todo-list li .view {
+            cursor: move; /* fallback */
+            cursor: grab;
+        }
+        .todo-list li .view:active {
+            cursor: grabbing;
+        }
+        /* 拖拽时的“幽灵”元素样式 */
+        .sortable-ghost {
+            opacity: 0.4;
+            background-color: #f0f0f0;
+            border: 2px dashed #ccc;
+        }
+        /* 拖拽选中项样式 */
+        .sortable-chosen {
+            background-color: #fff;
+        }
+        /* 禁用排序时的样式 */
+        .todo-list.disabled-sort li .view {
+            cursor: default;
+        }
+        
+        .info { margin-top: 40px; }
+        .info a { color: inherit; text-decoration: none; font-weight: 400; }
+        .info a:hover { text-decoration: underline; }
+    </style>
+
+    <!-- 引入 Vue.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <!-- 引入 Sortable.js 用于拖拽排序 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    
+    <script>
+        var _hmt = _hmt || [];
+        (function () {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?7b1742c43602c4ba1080845e597532e4";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+    <!-- 为了演示代码整洁，保留原有的 gtag 占位，实际运行需替换为有效 ID -->
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'UA-19122908-1');
+    </script>
+
+    <script>
+        window.onload = function () {
+            // localStorage persistence
+            var STORAGE_KEY = localStorage.getItem('todos-key');
+            if (!STORAGE_KEY) {
+                STORAGE_KEY = 'todos-vuejs-2.0';
+            }
+
+            var todoStorage = {
+                fetch: function () {
+                    var todos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+                    todos.forEach(function (todo, index) {
+                        todo.id = index
+                    })
+                    todoStorage.uid = todos.length
+                    return todos
+                },
+                save: function (todos) {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+                }
+            }
+
+            // visibility filters
+            var filters = {
+                all: function (todos) {
+                    return todos
+                },
+                active: function (todos) {
+                    return todos.filter(function (todo) {
+                        return !todo.completed
+                    })
+                },
+                completed: function (todos) {
+                    return todos.filter(function (todo) {
+                        return todo.completed
+                    })
+                }
+            }
+
+            // app Vue instance
+            var app = new Vue({
+                data: {
+                    todos: todoStorage.fetch(),
+                    newTodo: '',
+                    editedTodo: null,
+                    visibility: 'all',
+                    sortableInstance: null
+                },
+
+                // watch todos change for localStorage persistence
+                watch: {
+                    todos: {
+                        handler: function (todos) {
+                            todoStorage.save(todos)
+                        },
+                        deep: true
+                    },
+                    // 监听视图变化，如果不是 'all'，则禁用排序功能
+                    visibility: function(newVal) {
+                        if (this.sortableInstance) {
+                            this.sortableInstance.option("disabled", newVal !== 'all');
+                        }
+                    }
+                },
+
+                computed: {
+                    filteredTodos: function () {
+                        return filters[this.visibility](this.todos)
+                    },
+                    remaining: function () {
+                        return filters.active(this.todos).length
+                    },
+                    allDone: {
+                        get: function () {
+                            return this.remaining === 0
+                        },
+                        set: function (value) {
+                            this.todos.forEach(function (todo) {
+                                todo.completed = value
+                            })
+                        }
+                    },
+                    // 判断是否允许排序
+                    isSortEnabled: function() {
+                        return this.visibility === 'all';
+                    }
+                },
+
+                filters: {
+                    pluralize: function (n) {
+                        return n === 1 ? 'item' : 'items'
+                    }
+                },
+
+                mounted: function() {
+                    this.initSortable();
+                },
+
+                methods: {
+                    initSortable: function() {
+                        var el = this.$refs.todoListContainer;
+                        var self = this;
+                        
+                        this.sortableInstance = Sortable.create(el, {
+                            animation: 150,
+                            handle: '.view', // 拖拽手柄区域
+                            ghostClass: 'sortable-ghost', // 占位符样式
+                            chosenClass: 'sortable-chosen', // 选中样式
+                            disabled: false,
+                            onEnd: function(evt) {
+                                // 只有在 All 视图下才处理数据交换
+                                if (self.visibility !== 'all') return;
+
+                                // 阻止 Vue 在 DOM 上的默认刷新，手动同步数据
+                                var itemEl = evt.item;
+                                var newIndex = evt.newIndex;
+                                var oldIndex = evt.oldIndex;
+                                
+                                // 操作数组移动元素
+                                var targetRow = self.todos.splice(oldIndex, 1)[0];
+                                self.todos.splice(newIndex, 0, targetRow);
+                            }
+                        });
+                    },
+
+                    addTodo: function () {
+                        var value = this.newTodo && this.newTodo.trim()
+                        if (!value) {
+                            return
+                        }
+                        this.todos.push({
+                            id: todoStorage.uid++,
+                            title: value,
+                            completed: false
+                        })
+                        this.newTodo = ''
+                    },
+
+                    removeTodo: function (todo) {
+                        // 移除 confirm 弹窗，体验更流畅，或者保留均可
+                        if (confirm("您确定要删除该事项吗?")) {
+                            this.todos.splice(this.todos.indexOf(todo), 1)
+                        }
+                    },
+
+                    editTodo: function (todo) {
+                        this.beforeEditCache = todo.title
+                        this.editedTodo = todo
+                    },
+
+                    doneEdit: function (todo) {
+                        if (!this.editedTodo) {
+                            return
+                        }
+                        this.editedTodo = null
+                        todo.title = todo.title.trim()
+                        if (!todo.title) {
+                            this.removeTodo(todo)
+                        }
+                    },
+
+                    cancelEdit: function (todo) {
+                        this.editedTodo = null
+                        todo.title = this.beforeEditCache
+                    },
+
+                    removeCompleted: function () {
+                        if (confirm("您确定要清除已完成的事项吗?")) {
+                            this.todos = filters.active(this.todos)
+                        }
+                    },
+                    
+                    switchTaskGroup: function(e) {
+                        var btn = e.target;
+                        // 逻辑：如果点击的是 span 内部，找到父级 a 标签
+                        if(btn.tagName !== 'A') btn = btn.closest('a');
+                        
+                        var index = btn.dataset['index'];
+                        if (index == null) index = 0;
+                        
+                        index = parseInt(index);
+                        if (index >= 3) {
+                            index = 0;
+                        } else {
+                            index++;
+                        }
+                        btn.dataset['index'] = index;
+                        
+                        var groups = ['todos-vuejs-2.0', 'todos-group-1', 'todos-group-2', 'todos-group-3'];
+                        if (groups[index]) {
+                            STORAGE_KEY = groups[index];
+                            localStorage.setItem('todos-key', groups[index]);
+                            document.getElementById("task").innerHTML = STORAGE_KEY;
+                        }
+                        this.todos = todoStorage.fetch();
+                    }
+                },
+
+                directives: {
+                    'todo-focus': function (el, binding) {
+                        if (binding.value) {
+                            el.focus()
+                        }
+                    }
+                }
+            })
+
+            // handle routing
+            function onHashChange() {
+                var visibility = window.location.hash.replace(/#\/?/, '')
+                if (filters[visibility]) {
+                    app.visibility = visibility
+                } else {
+                    window.location.hash = ''
+                    app.visibility = 'all'
+                }
+            }
+
+            window.addEventListener('hashchange', onHashChange)
+            onHashChange()
+            app.$mount('.todoapp')
+            
+            // 绑定外部切换按钮事件 (移植原代码逻辑到 Vue 实例外或内均可，这里保持兼容性)
+            document.getElementById("changekey").onclick = function(e) {
+                app.switchTaskGroup(e);
+            }
+        }
+    </script>
+</head>
+<body>
+<section class="todoapp">
+    <header class="header">
+        <h1>todos</h1>
+        <input class="new-todo"
+               autofocus autocomplete="off"
+               placeholder="What needs to be done?"
+               v-model="newTodo"
+               @keyup.enter="addTodo">
+    </header>
+    <section class="main" v-show="todos.length" v-cloak>
+        <input class="toggle-all" type="checkbox" v-model="allDone">
+        
+        <!-- 添加 ref 以便 SortableJS 挂载 -->
+        <!-- 添加 disabled-sort 类名控制样式 -->
+        <ul class="todo-list" ref="todoListContainer" :class="{ 'disabled-sort': !isSortEnabled }">
+            <li v-for="todo in filteredTodos"
+                class="todo"
+                :key="todo.id"
+                :class="{ completed: todo.completed, editing: todo == editedTodo }">
+                <div class="view" :title="isSortEnabled ? 'Drag to reorder' : ''">
+                    <input class="toggle" type="checkbox" v-model="todo.completed">
+                    <label @dblclick="editTodo(todo)">{{ todo.title }}</label>
+                    <button class="destroy" @click="removeTodo(todo)"></button>
+                </div>
+                <input class="edit" type="text"
+                       v-model="todo.title"
+                       v-todo-focus="todo == editedTodo"
+                       @blur="doneEdit(todo)"
+                       @keyup.enter="doneEdit(todo)"
+                       @keyup.esc="cancelEdit(todo)">
+            </li>
+        </ul>
+    </section>
+    <footer class="footer" v-show="todos.length" v-cloak>
+    <span class="todo-count">
+      <strong>{{ remaining }}</strong> {{ remaining | pluralize }} left
+    </span>
+        <ul class="filters">
+            <li><a href="#/all" :class="{ selected: visibility == 'all' }">All</a></li>
+            <li><a href="#/active" :class="{ selected: visibility == 'active' }">Active</a></li>
+            <li><a href="#/completed" :class="{ selected: visibility == 'completed' }">Completed</a></li>
+        </ul>
+        <button class="clear-completed" @click="removeCompleted" v-show="todos.length > remaining">
+            Clear completed
+        </button>
+    </footer>
+</section>
+<footer class="info">
+    <p>Double-click to edit a todo</p>
+    <p v-if="visibility === 'all'" style="color: #af5b5e;"><strong>Tip: Drag and drop items to reorder them!</strong></p>
+    <p>Modified by <a href="#">Senior Frontend Engineer</a></p>
+    <p>Part of <a href="http://todomvc.com">TodoMVC</a></p>
+    <p style="position: fixed; right: 10px; top: 20px;">
+        <a href="javascript:void(0)" id="changekey" data-index="0">
+            Switch Task (<span id="task">default</span>)
+        </a>
+    </p>
+</footer>
+</body>
+</html>

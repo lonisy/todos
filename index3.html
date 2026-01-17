@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Todos - Drag & Drop</title>
+    <!-- 使用 CDN 确保样式和脚本直接可用 -->
+    <link rel="stylesheet" href="https://unpkg.com/todomvc-app-css@2.4.1/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.min.js"></script>
+    
+    <style>
+        [v-cloak] {
+            display: none;
+        }
+        
+        /* 美化与自定义排序样式 */
+        body {
+            background-color: #f5f5f5;
+            color: #4d4d4d;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+
+        .todoapp {
+            background: #fff;
+            margin: 130px 0 40px 0;
+            position: relative;
+            box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2),
+                        0 25px 50px 0 rgba(0, 0, 0, 0.1);
+            border-radius: 8px; /* 圆角更美观 */
+        }
+
+        .todoapp h1 {
+            top: -140px;
+            color: rgba(175, 47, 47, 0.35); /* 更柔和的标题颜色 */
+            font-weight: 300;
+        }
+
+        .new-todo, .edit {
+            border-radius: 8px 8px 0 0; /* 顶部圆角 */
+        }
+
+        .todo-list li {
+            transition: all 0.2s ease;
+            border-bottom: 1px solid #ededed;
+        }
+        
+        .todo-list li:last-child {
+            border-bottom: none;
+        }
+
+        /* 拖拽相关样式 */
+        .todo-list li.draggable-item {
+            cursor: move; /* 移动光标 */
+        }
+
+        /* 当过滤条件不是 All 时，禁用拖拽的视觉提示 */
+        .todo-list li.draggable-item.disabled-drag {
+            cursor: default;
+        }
+
+        .todo-list li.dragging {
+            opacity: 0.5;
+            background: #f9f9f9;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.1);
+        }
+
+        /* 拖拽把手指示器 (可选，这里使用整个行拖拽) */
+        .view:hover {
+            background-color: #fafafa;
+        }
+
+        /* 底部美化 */
+        .footer {
+            border-radius: 0 0 8px 8px;
+        }
+        
+        .info {
+            color: #bfbfbf;
+            font-size: 12px;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+            text-align: center;
+        }
+
+        /* 提示信息 */
+        .drag-hint {
+            position: absolute;
+            top: -25px;
+            right: 0;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .header {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+<section class="todoapp">
+    <header class="header">
+        <h1>todos</h1>
+        <div class="drag-hint" v-show="visibility === 'all' && todos.length > 1">Tip: 拖拽列表项可进行排序</div>
+        <input class="new-todo"
+               autofocus autocomplete="off"
+               placeholder="接下来要做什么?"
+               v-model="newTodo"
+               @keyup.enter="addTodo">
+    </header>
+    <section class="main" v-show="todos.length" v-cloak>
+        <input class="toggle-all" id="toggle-all" type="checkbox" v-model="allDone">
+        <label for="toggle-all">Mark all as complete</label>
+        
+        <ul class="todo-list">
+            <!-- 
+                核心修改: 
+                1. 增加 draggable 属性
+                2. 绑定 dragstart, dragenter, dragend 事件实现原生拖拽排序
+                3. 只在 'all' 视图下允许拖拽，避免索引混乱
+            -->
+            <li v-for="(todo, index) in filteredTodos"
+                class="todo draggable-item"
+                :class="{ 
+                    completed: todo.completed, 
+                    editing: todo == editedTodo,
+                    dragging: dragIndex === index,
+                    'disabled-drag': visibility !== 'all'
+                }"
+                :key="todo.id"
+                :draggable="visibility === 'all'"
+                @dragstart="dragStart(index)"
+                @dragenter.prevent="dragEnter(index)"
+                @dragover.prevent
+                @dragend="dragEnd"
+            >
+                <div class="view">
+                    <input class="toggle" type="checkbox" v-model="todo.completed">
+                    <label @dblclick="editTodo(todo)">{{ todo.title }}</label>
+                    <button class="destroy" @click="removeTodo(todo)"></button>
+                </div>
+                <input class="edit" type="text"
+                       v-model="todo.title"
+                       v-todo-focus="todo == editedTodo"
+                       @blur="doneEdit(todo)"
+                       @keyup.enter="doneEdit(todo)"
+                       @keyup.esc="cancelEdit(todo)">
+            </li>
+        </ul>
+    </section>
+    <footer class="footer" v-show="todos.length" v-cloak>
+    <span class="todo-count">
+      <strong>{{ remaining }}</strong> {{ remaining | pluralize }} 待办
+    </span>
+        <ul class="filters">
+            <li><a href="#/all" :class="{ selected: visibility == 'all' }">全部</a></li>
+            <li><a href="#/active" :class="{ selected: visibility == 'active' }">进行中</a></li>
+            <li><a href="#/completed" :class="{ selected: visibility == 'completed' }">已完成</a></li>
+        </ul>
+        <button class="clear-completed" @click="removeCompleted" v-show="todos.length > remaining">
+            清除已完成
+        </button>
+    </footer>
+</section>
+
+<footer class="info">
+    <p>双击编辑待办事项</p>
+    <p>支持拖拽排序 (仅在"全部"视图下)</p>
+    <p style="margin-top: 20px;">
+        <a href="javascript:void(0)" id="changekey" data-index="0">
+            切换任务组 (<span id="task">default</span>)
+        </a>
+    </p>
+</footer>
+
+<script>
+    window.onload = function () {
+        // localStorage persistence logic
+        var STORAGE_KEY = localStorage.getItem('todos-key') || 'todos-vuejs-2.0';
+
+        var todoStorage = {
+            fetch: function () {
+                var todos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                todos.forEach(function (todo, index) {
+                    todo.id = index; // Ensure IDs
+                });
+                todoStorage.uid = todos.length;
+                return todos;
+            },
+            save: function (todos) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+            }
+        };
+
+        // Switch Task Group Logic
+        document.getElementById("task").innerText = STORAGE_KEY;
+        document.getElementById("changekey").onclick = function () {
+            var index = parseInt(this.dataset['index']) || 0;
+            index = (index >= 3) ? 0 : index + 1;
+            this.dataset['index'] = index;
+            
+            var groups = ['todos-vuejs-2.0', 'todos-group-1', 'todos-group-2', 'todos-group-3'];
+            STORAGE_KEY = groups[index];
+            localStorage.setItem('todos-key', STORAGE_KEY);
+            document.getElementById("task").innerText = STORAGE_KEY;
+            
+            // Reload data
+            app.todos = todoStorage.fetch();
+        };
+
+        // Visibility filters
+        var filters = {
+            all: function (todos) {
+                return todos;
+            },
+            active: function (todos) {
+                return todos.filter(function (todo) {
+                    return !todo.completed;
+                });
+            },
+            completed: function (todos) {
+                return todos.filter(function (todo) {
+                    return todo.completed;
+                });
+            }
+        };
+
+        var app = new Vue({
+            data: {
+                todos: todoStorage.fetch(),
+                newTodo: '',
+                editedTodo: null,
+                visibility: 'all',
+                dragIndex: null // 用于追踪正在拖拽的元素索引
+            },
+
+            watch: {
+                todos: {
+                    handler: function (todos) {
+                        todoStorage.save(todos);
+                    },
+                    deep: true
+                }
+            },
+
+            computed: {
+                filteredTodos: function () {
+                    return filters[this.visibility](this.todos);
+                },
+                remaining: function () {
+                    return filters.active(this.todos).length;
+                },
+                allDone: {
+                    get: function () {
+                        return this.remaining === 0;
+                    },
+                    set: function (value) {
+                        this.todos.forEach(function (todo) {
+                            todo.completed = value;
+                        });
+                    }
+                }
+            },
+
+            filters: {
+                pluralize: function (n) {
+                    return n === 1 ? '项' : '项';
+                }
+            },
+
+            methods: {
+                addTodo: function () {
+                    var value = this.newTodo && this.newTodo.trim();
+                    if (!value) {
+                        return;
+                    }
+                    this.todos.push({
+                        id: todoStorage.uid++,
+                        title: value,
+                        completed: false
+                    });
+                    this.newTodo = '';
+                },
+
+                removeTodo: function (todo) {
+                    if (confirm("您确定要删除此项吗?")) {
+                        this.todos.splice(this.todos.indexOf(todo), 1);
+                    }
+                },
+
+                editTodo: function (todo) {
+                    this.beforeEditCache = todo.title;
+                    this.editedTodo = todo;
+                },
+
+                doneEdit: function (todo) {
+                    if (!this.editedTodo) {
+                        return;
+                    }
+                    this.editedTodo = null;
+                    todo.title = todo.title.trim();
+                    if (!todo.title) {
+                        this.removeTodo(todo);
+                    }
+                },
+
+                cancelEdit: function (todo) {
+                    this.editedTodo = null;
+                    todo.title = this.beforeEditCache;
+                },
+
+                removeCompleted: function () {
+                    if (confirm("您确定要清除已完成的项目吗?")) {
+                        this.todos = filters.active(this.todos);
+                    }
+                },
+
+                // --- 拖拽排序逻辑 ---
+                dragStart(index) {
+                    // 只有在全部视图下允许拖拽，防止索引错乱
+                    if (this.visibility !== 'all') return;
+                    this.dragIndex = index;
+                },
+
+                dragEnter(index) {
+                    // 1. 如果不是全部视图，不执行
+                    // 2. 如果拖拽目标就是自己，不执行
+                    if (this.visibility !== 'all' || this.dragIndex === index) {
+                        return;
+                    }
+
+                    // 数组重排逻辑
+                    // 1. 取出被拖拽的元素
+                    const itemToMove = this.todos.splice(this.dragIndex, 1)[0];
+                    // 2. 插入到新位置
+                    this.todos.splice(index, 0, itemToMove);
+                    
+                    // 3. 更新当前拖拽元素的索引，以便连续拖动
+                    this.dragIndex = index;
+                },
+
+                dragEnd() {
+                    this.dragIndex = null;
+                }
+            },
+
+            directives: {
+                'todo-focus': function (el, binding) {
+                    if (binding.value) {
+                        el.focus();
+                    }
+                }
+            }
+        });
+
+        // Handle routing
+        function onHashChange() {
+            var visibility = window.location.hash.replace(/#\/?/, '');
+            if (filters[visibility]) {
+                app.visibility = visibility;
+            } else {
+                window.location.hash = '';
+                app.visibility = 'all';
+            }
+        }
+
+        window.addEventListener('hashchange', onHashChange);
+        onHashChange();
+
+        app.$mount('.todoapp');
+    };
+</script>
+</body>
+</html>

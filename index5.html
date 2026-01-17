@@ -9,7 +9,7 @@
     <!-- SortableJS & VueDraggable for Drag and Drop -->
     <script src="assets/js/Sortable.min.js"></script>
     <script src="assets/js/vuedraggable.umd.min.js"></script>
-    <!--    <script src="https://cdn.jsdelivr.net/npm/vuedraggable@2.24.3/dist/vuedraggable.umd.min.js"></script>-->
+<!--    <script src="https://cdn.jsdelivr.net/npm/vuedraggable@2.24.3/dist/vuedraggable.umd.min.js"></script>-->
     <script>
         var _hmt = _hmt || [];
         (function () {
@@ -33,7 +33,7 @@
         /* Base TodoMVC CSS */
         :focus { outline: 0; }
         [v-cloak] { display: none; }
-
+        
         html, body {
             margin: 0;
             padding: 0;
@@ -57,7 +57,7 @@
             margin: 130px 0 40px 0;
             position: relative;
             box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2),
-            0 25px 50px 0 rgba(0, 0, 0, 0.1);
+                        0 25px 50px 0 rgba(0, 0, 0, 0.1);
         }
 
         .todoapp input::-webkit-input-placeholder {
@@ -218,7 +218,7 @@
             line-height: 1.2;
             transition: color 0.4s;
             /* Cursor style for drag and drop */
-            cursor: move;
+            cursor: move; 
         }
 
         .todo-list li.completed label {
@@ -281,10 +281,10 @@
             height: 50px;
             overflow: hidden;
             box-shadow: 0 1px 1px rgba(0, 0, 0, 0.2),
-            0 8px 0 -3px #f6f6f6,
-            0 9px 1px -3px rgba(0, 0, 0, 0.2),
-            0 16px 0 -6px #f6f6f6,
-            0 17px 2px -6px rgba(0, 0, 0, 0.2);
+                        0 8px 0 -3px #f6f6f6,
+                        0 9px 1px -3px rgba(0, 0, 0, 0.2),
+                        0 16px 0 -6px #f6f6f6,
+                        0 17px 2px -6px rgba(0, 0, 0, 0.2);
         }
 
         .todo-count {
@@ -377,7 +377,7 @@
             opacity: 0.4;
             background-color: #f9f9f9;
         }
-
+        
         .sortable-drag {
             cursor: grabbing;
         }
@@ -390,7 +390,7 @@
             color: #999;
         }
     </style>
-
+    
     <script>
         window.onload = function () {
             // Register VueDraggable
@@ -399,7 +399,7 @@
 
             // LocalStorage Persistence
             var STORAGE_KEY = localStorage.getItem('todos-key') || 'todos-vuejs-2.0';
-
+            
             var todoStorage = {
                 fetch: function () {
                     var todos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
@@ -418,14 +418,14 @@
             document.getElementById("changekey").onclick = function () {
                 var index = this.dataset['index'];
                 index = (index == null || index >= 3) ? 0 : parseInt(index) + 1;
-
+                
                 this.dataset['index'] = index;
                 var groups = ['todos-vuejs-2.0', 'todos-group-1', 'todos-group-2', 'todos-group-3'];
-
+                
                 STORAGE_KEY = groups[index];
                 localStorage.setItem('todos-key', STORAGE_KEY);
                 document.getElementById("task").innerHTML = STORAGE_KEY;
-
+                
                 app.todos = todoStorage.fetch();
             };
 
@@ -557,10 +557,10 @@
 
             window.addEventListener('hashchange', onHashChange);
             onHashChange();
-
+            
             // Initialization
             app.$mount('.todoapp');
-
+            
             // Initial label update for task group
             var currentKey = localStorage.getItem('todos-key');
             if(currentKey) {
@@ -568,108 +568,108 @@
                 var groups = ['todos-vuejs-2.0', 'todos-group-1', 'todos-group-2', 'todos-group-3'];
                 var idx = groups.indexOf(currentKey);
                 if(idx > -1) {
-                    document.getElementById("changekey").dataset['index'] = idx;
+                   document.getElementById("changekey").dataset['index'] = idx; 
                 }
             }
         };
     </script>
 </head>
 <body>
-<section class="todoapp">
-    <header class="header">
-        <h1>todos</h1>
-        <input class="new-todo"
-               autofocus autocomplete="off"
-               placeholder="What needs to be done?"
-               v-model="newTodo"
-               @keyup.enter="addTodo">
-        <div class="disabled-sort-notice" v-if="visibility !== 'all' && todos.length > 0">
-            Sorting disabled while filtering
-        </div>
-    </header>
+    <section class="todoapp">
+        <header class="header">
+            <h1>todos</h1>
+            <input class="new-todo"
+                   autofocus autocomplete="off"
+                   placeholder="What needs to be done?"
+                   v-model="newTodo"
+                   @keyup.enter="addTodo">
+            <div class="disabled-sort-notice" v-if="visibility !== 'all' && todos.length > 0">
+                Sorting disabled while filtering
+            </div>
+        </header>
 
-    <section class="main" v-show="todos.length" v-cloak>
-        <input class="toggle-all" type="checkbox" v-model="allDone" id="toggle-all">
-        <label for="toggle-all">Mark all as complete</label>
-
-        <!--
-          Sorting Logic:
-          We use <draggable> only when visibility is 'all' to ensure the main array index matches the visual order.
-          When filtered, we fall back to a standard <ul>.
-        -->
-
-        <!-- Draggable List (All) -->
-        <draggable
+        <section class="main" v-show="todos.length" v-cloak>
+            <input class="toggle-all" type="checkbox" v-model="allDone" id="toggle-all">
+            <label for="toggle-all">Mark all as complete</label>
+            
+            <!-- 
+              Sorting Logic: 
+              We use <draggable> only when visibility is 'all' to ensure the main array index matches the visual order.
+              When filtered, we fall back to a standard <ul>.
+            -->
+            
+            <!-- Draggable List (All) -->
+            <draggable 
                 v-if="visibility === 'all'"
-                v-model="todos"
-                tag="ul"
+                v-model="todos" 
+                tag="ul" 
                 class="todo-list"
                 handle=".view"
                 ghost-class="sortable-ghost"
                 drag-class="sortable-drag"
                 animation="200"
-        >
-            <li v-for="todo in todos"
-                class="todo"
-                :key="todo.id"
-                :class="{ completed: todo.completed, editing: todo == editedTodo }">
-                <div class="view" title="Drag to reorder">
-                    <input class="toggle" type="checkbox" v-model="todo.completed">
-                    <label @dblclick="editTodo(todo)">{{ todo.title }}</label>
-                    <button class="destroy" @click="removeTodo(todo)"></button>
-                </div>
-                <input class="edit" type="text"
-                       v-model="todo.title"
-                       v-todo-focus="todo == editedTodo"
-                       @blur="doneEdit(todo)"
-                       @keyup.enter="doneEdit(todo)"
-                       @keyup.esc="cancelEdit(todo)">
-            </li>
-        </draggable>
+            >
+                <li v-for="todo in todos"
+                    class="todo"
+                    :key="todo.id"
+                    :class="{ completed: todo.completed, editing: todo == editedTodo }">
+                    <div class="view" title="Drag to reorder">
+                        <input class="toggle" type="checkbox" v-model="todo.completed">
+                        <label @dblclick="editTodo(todo)">{{ todo.title }}</label>
+                        <button class="destroy" @click="removeTodo(todo)"></button>
+                    </div>
+                    <input class="edit" type="text"
+                           v-model="todo.title"
+                           v-todo-focus="todo == editedTodo"
+                           @blur="doneEdit(todo)"
+                           @keyup.enter="doneEdit(todo)"
+                           @keyup.esc="cancelEdit(todo)">
+                </li>
+            </draggable>
 
-        <!-- Static List (Active/Completed) -->
-        <ul v-else class="todo-list">
-            <li v-for="todo in filteredTodos"
-                class="todo"
-                :key="todo.id"
-                :class="{ completed: todo.completed, editing: todo == editedTodo }">
-                <div class="view" style="cursor: default;">
-                    <input class="toggle" type="checkbox" v-model="todo.completed">
-                    <label @dblclick="editTodo(todo)" style="cursor: default;">{{ todo.title }}</label>
-                    <button class="destroy" @click="removeTodo(todo)"></button>
-                </div>
-                <input class="edit" type="text"
-                       v-model="todo.title"
-                       v-todo-focus="todo == editedTodo"
-                       @blur="doneEdit(todo)"
-                       @keyup.enter="doneEdit(todo)"
-                       @keyup.esc="cancelEdit(todo)">
-            </li>
-        </ul>
+            <!-- Static List (Active/Completed) -->
+            <ul v-else class="todo-list">
+                <li v-for="todo in filteredTodos"
+                    class="todo"
+                    :key="todo.id"
+                    :class="{ completed: todo.completed, editing: todo == editedTodo }">
+                    <div class="view" style="cursor: default;">
+                        <input class="toggle" type="checkbox" v-model="todo.completed">
+                        <label @dblclick="editTodo(todo)" style="cursor: default;">{{ todo.title }}</label>
+                        <button class="destroy" @click="removeTodo(todo)"></button>
+                    </div>
+                    <input class="edit" type="text"
+                           v-model="todo.title"
+                           v-todo-focus="todo == editedTodo"
+                           @blur="doneEdit(todo)"
+                           @keyup.enter="doneEdit(todo)"
+                           @keyup.esc="cancelEdit(todo)">
+                </li>
+            </ul>
 
-    </section>
+        </section>
 
-    <footer class="footer" v-show="todos.length" v-cloak>
+        <footer class="footer" v-show="todos.length" v-cloak>
             <span class="todo-count">
                 <strong>{{ remaining }}</strong> {{ remaining | pluralize }} left
             </span>
-        <ul class="filters">
-            <li><a href="#/all" :class="{ selected: visibility == 'all' }">All</a></li>
-            <li><a href="#/active" :class="{ selected: visibility == 'active' }">Active</a></li>
-            <li><a href="#/completed" :class="{ selected: visibility == 'completed' }">Completed</a></li>
-        </ul>
-        <button class="clear-completed" @click="removeCompleted" v-show="todos.length > remaining">
-            Clear completed
-        </button>
-    </footer>
-</section>
+            <ul class="filters">
+                <li><a href="#/all" :class="{ selected: visibility == 'all' }">All</a></li>
+                <li><a href="#/active" :class="{ selected: visibility == 'active' }">Active</a></li>
+                <li><a href="#/completed" :class="{ selected: visibility == 'completed' }">Completed</a></li>
+            </ul>
+            <button class="clear-completed" @click="removeCompleted" v-show="todos.length > remaining">
+                Clear completed
+            </button>
+        </footer>
+    </section>
 
-<footer class="info">
-    <p>Drag and drop items to sort (in 'All' view)</p>
-    <p>Double-click to edit a todo</p>
-    <p style="position: fixed; right: 10px; top: 20px;">
-        <a href="javascript:void(0)" id="changekey" data-index="0">Switch Task (<span id="task">default</span>)</a>
-    </p>
-</footer>
+    <footer class="info">
+        <p>Drag and drop items to sort (in 'All' view)</p>
+        <p>Double-click to edit a todo</p>
+        <p style="position: fixed; right: 10px; top: 20px;">
+            <a href="javascript:void(0)" id="changekey" data-index="0">Switch Task (<span id="task">default</span>)</a>
+        </p>
+    </footer>
 </body>
 </html>

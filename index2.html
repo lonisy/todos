@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Todo List with Sorting</title>
+    <!-- 引入标准 TodoMVC 样式，确保美观 -->
+    <link rel="stylesheet" href="https://unpkg.com/todomvc-app-css@2.4.1/index.css">
+    <style>
+        /* 基础样式微调 */
+        [v-cloak] { display: none; }
+        
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            background: #f5f5f5;
+        }
+
+        .todoapp {
+            background: #fff;
+            margin: 130px 0 40px 0;
+            position: relative;
+            box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2),
+                        0 25px 50px 0 rgba(0, 0, 0, 0.1);
+        }
+
+        .todoapp h1 {
+            top: -155px;
+            width: 100%;
+            font-size: 100px;
+            font-weight: 100;
+            text-align: center;
+            color: rgba(175, 47, 47, 0.15);
+        }
+
+        /* 拖拽相关样式 */
+        .todo-list li {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        /* 拖拽时的幽灵样式 */
+        .sortable-ghost {
+            opacity: 0.4;
+            background-color: #f9f9f9;
+            border: 2px dashed #ccc;
+        }
+
+        /* 拖拽时的选中样式 */
+        .sortable-drag {
+            cursor: grabbing;
+            opacity: 1;
+            background: #fff;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+            transform: scale(1.02);
+        }
+
+        /* 拖拽手柄样式 */
+        .drag-handle {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 40px;
+            text-align: center;
+            line-height: 60px; /* match todo item height */
+            color: #e6e6e6;
+            cursor: grab;
+            font-size: 20px;
+            transition: color 0.2s;
+            z-index: 10;
+        }
+
+        .todo-list li:hover .drag-handle {
+            color: #cc9a9a;
+        }
+
+        .todo-list li.completed .drag-handle {
+            opacity: 0.3;
+            cursor: default;
+        }
+
+        /* 调整原有的 toggle checkbox 和 label 的位置，给手柄腾出空间 */
+        .todo-list li .toggle {
+            left: 40px; 
+        }
+
+        .todo-list li label {
+            padding: 15px 15px 15px 80px; /* 增加左边距 */
+            background-image: none; /* remove svg if conflict */
+        }
+        
+        /* 底部信息 */
+        .info {
+            margin: 65px auto 0;
+            color: #bfbfbf;
+            font-size: 10px;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+            text-align: center;
+        }
+        
+        .info p { line-height: 1.5; }
+        .info a { color: inherit; text-decoration: none; font-weight: 400; }
+        .info a:hover { text-decoration: underline; }
+
+        /* 禁用排序时的提示 */
+        .sorting-disabled-msg {
+            text-align: center;
+            padding: 10px;
+            color: #999;
+            font-size: 12px;
+            background: #fffaf3;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+    
+    <!-- Vue.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+    <!-- SortableJS 用于拖拽排序 -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+
+<section class="todoapp" id="todo-app" v-cloak>
+    <header class="header">
+        <h1>todos</h1>
+        <input class="new-todo"
+               autofocus
+               autocomplete="off"
+               placeholder="What needs to be done?"
+               v-model="newTodo"
+               @keyup.enter="addTodo">
+    </header>
+    
+    <section class="main" v-show="todos.length">
+        <input id="toggle-all" class="toggle-all" type="checkbox" v-model="allDone">
+        <label for="toggle-all">Mark all as complete</label>
+        
+        <!-- 仅在 All 视图下允许排序的提示 -->
+        <div v-if="visibility !== 'all'" class="sorting-disabled-msg">
+            Sorting is disabled in filtered views. Switch to "All" to reorder tasks.
+        </div>
+
+        <ul class="todo-list" ref="todoList">
+            <li v-for="todo in filteredTodos"
+                class="todo"
+                :key="todo.id"
+                :data-id="todo.id"
+                :class="{ completed: todo.completed, editing: todo == editedTodo }">
+                <div class="view">
+                    <!-- 拖拽手柄: 仅在未完成且处于 'all' 视图时可用 -->
+                    <span class="drag-handle" v-show="visibility === 'all'">
+                        &#9776; <!-- Unicode Hamburger Icon -->
+                    </span>
+
+                    <input class="toggle" type="checkbox" v-model="todo.completed">
+                    <label @dblclick="editTodo(todo)">{{ todo.title }}</label>
+                    <button class="destroy" @click="removeTodo(todo)"></button>
+                </div>
+                <input class="edit" type="text"
+                       v-model="todo.title"
+                       v-todo-focus="todo == editedTodo"
+                       @blur="doneEdit(todo)"
+                       @keyup.enter="doneEdit(todo)"
+                       @keyup.esc="cancelEdit(todo)">
+            </li>
+        </ul>
+    </section>
+    
+    <footer class="footer" v-show="todos.length">
+        <span class="todo-count">
+            <strong>{{ remaining }}</strong> {{ remaining | pluralize }} left
+        </span>
+        <ul class="filters">
+            <li><a href="#/all" :class="{ selected: visibility == 'all' }">All</a></li>
+            <li><a href="#/active" :class="{ selected: visibility == 'active' }">Active</a></li>
+            <li><a href="#/completed" :class="{ selected: visibility == 'completed' }">Completed</a></li>
+        </ul>
+        <button class="clear-completed" @click="removeCompleted" v-show="todos.length > remaining">
+            Clear completed
+        </button>
+    </footer>
+</section>
+
+<footer class="info">
+    <p>Drag the ☰ handle to reorder tasks</p>
+    <p>Double-click to edit a todo</p>
+    <p>Enhanced by Senior Frontend Engineer</p>
+</footer>
+
+<script>
+    // Storage logic
+    var STORAGE_KEY = 'todos-vuejs-sortable-2.0';
+    var todoStorage = {
+        fetch: function () {
+            var todos = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            // 确保旧数据有唯一 ID
+            todos.forEach(function (todo, index) {
+                if (!todo.id) todo.id = Date.now() + index;
+            });
+            return todos;
+        },
+        save: function (todos) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+        }
+    };
+
+    // Visibility filters
+    var filters = {
+        all: function (todos) { return todos; },
+        active: function (todos) {
+            return todos.filter(function (todo) { return !todo.completed; });
+        },
+        completed: function (todos) {
+            return todos.filter(function (todo) { return todo.completed; });
+        }
+    };
+
+    var app = new Vue({
+        el: '#todo-app',
+        data: {
+            todos: todoStorage.fetch(),
+            newTodo: '',
+            editedTodo: null,
+            visibility: 'all',
+            sortableInstance: null // 保存 sortable 实例引用
+        },
+
+        watch: {
+            todos: {
+                handler: function (todos) {
+                    todoStorage.save(todos);
+                },
+                deep: true
+            },
+            visibility: function(newVal) {
+                // 当视图改变时，控制是否启用拖拽
+                this.updateSortableStatus();
+            }
+        },
+
+        computed: {
+            filteredTodos: function () {
+                return filters[this.visibility](this.todos);
+            },
+            remaining: function () {
+                return filters.active(this.todos).length;
+            },
+            allDone: {
+                get: function () {
+                    return this.remaining === 0;
+                },
+                set: function (value) {
+                    this.todos.forEach(function (todo) {
+                        todo.completed = value;
+                    });
+                }
+            }
+        },
+
+        filters: {
+            pluralize: function (n) {
+                return n === 1 ? 'item' : 'items';
+            }
+        },
+
+        methods: {
+            addTodo: function () {
+                var value = this.newTodo && this.newTodo.trim();
+                if (!value) return;
+                
+                this.todos.push({
+                    id: Date.now(), // 使用时间戳作为唯一ID，这对排序至关重要
+                    title: value,
+                    completed: false
+                });
+                this.newTodo = '';
+            },
+
+            removeTodo: function (todo) {
+                var index = this.todos.indexOf(todo);
+                this.todos.splice(index, 1);
+            },
+
+            editTodo: function (todo) {
+                this.beforeEditCache = todo.title;
+                this.editedTodo = todo;
+            },
+
+            doneEdit: function (todo) {
+                if (!this.editedTodo) return;
+                this.editedTodo = null;
+                todo.title = todo.title.trim();
+                if (!todo.title) {
+                    this.removeTodo(todo);
+                }
+            },
+
+            cancelEdit: function (todo) {
+                this.editedTodo = null;
+                todo.title = this.beforeEditCache;
+            },
+
+            removeCompleted: function () {
+                this.todos = filters.active(this.todos);
+            },
+
+            // 初始化 SortableJS
+            initSortable: function () {
+                var el = this.$refs.todoList;
+                var self = this;
+                
+                this.sortableInstance = Sortable.create(el, {
+                    handle: '.drag-handle', // 只能通过这个手柄拖拽
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    dragClass: 'sortable-drag',
+                    disabled: false, // 初始状态
+                    onEnd: function (evt) {
+                        // 拖拽结束后同步 Vue 的数据
+                        // 注意：这里我们假设在 'all' 视图下操作，索引是一一对应的
+                        var item = self.todos.splice(evt.oldIndex, 1)[0];
+                        self.todos.splice(evt.newIndex, 0, item);
+                    }
+                });
+            },
+
+            updateSortableStatus: function() {
+                if (this.sortableInstance) {
+                    // 只有在 'all' 视图下才允许排序，否则索引会混乱
+                    var shouldEnable = (this.visibility === 'all');
+                    this.sortableInstance.option("disabled", !shouldEnable);
+                }
+            }
+        },
+
+        directives: {
+            'todo-focus': function (el, binding) {
+                if (binding.value) {
+                    el.focus();
+                }
+            }
+        },
+
+        mounted: function () {
+            // 初始化路由处理
+            var onHashChange = () => {
+                var visibility = window.location.hash.replace(/#\/?/, '');
+                if (filters[visibility]) {
+                    this.visibility = visibility;
+                } else {
+                    window.location.hash = '';
+                    this.visibility = 'all';
+                }
+            };
+
+            window.addEventListener('hashchange', onHashChange);
+            onHashChange();
+
+            // 挂载后初始化拖拽
+            this.initSortable();
+            // 确保初始状态正确
+            this.updateSortableStatus();
+        }
+    });
+</script>
+</body>
+</html>
